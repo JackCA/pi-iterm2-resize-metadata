@@ -1,22 +1,22 @@
 # pi-iterm2-resize-metadata
 
-A [Pi](https://pi.dev/) extension that preserves iTerm2 shell-integration metadata when Pi's regular-mode TUI redraws after a terminal resize.
+A [Pi](https://pi.dev/) extension that preserves [iTerm2 Shell Integration](https://iterm2.com/documentation-shell-integration.html) metadata when Pi's regular-mode TUI redraws after a terminal resize.
 
-This keeps iTerm2's contextual **Download with scp** action available on replayed remote file paths, including inside persistent tmux sessions.
+This keeps iTerm2's contextual [**Download with scp**](https://iterm2.com/documentation-shell-integration.html#download-with-scp) action available on replayed remote file paths, including inside persistent [tmux Integration](https://iterm2.com/documentation-tmux-integration.html) sessions.
 
 ## Why this exists
 
 iTerm2 associates `RemoteHost` and `CurrentDir` metadata with terminal lines. In regular TUI mode, Pi clears the viewport and scrollback and then replays its transcript when the terminal width or height changes. The replayed lines normally lose that metadata.
 
-This extension inserts fresh iTerm2 OSC 1337 metadata immediately after Pi's full-redraw clear sequence and before transcript replay.
+This extension inserts fresh [iTerm2 OSC 1337 metadata](https://iterm2.com/documentation-escape-codes.html) immediately after Pi's full-redraw clear sequence and before transcript replay.
 
 ## Requirements
 
 - Pi with extension support (tested with Pi 1.0.4)
-- iTerm2
+- [iTerm2](https://iterm2.com/)
 - Pi's regular TUI mode
 - A remote connection for which iTerm2 can perform SCP downloads
-- For the best upload experience, an iTerm2 SSH Integration connection such as `it2ssh` or an SSH profile with SSH Integration enabled
+- For the best upload experience, an [iTerm2 SSH Integration](https://iterm2.com/documentation-preferences-profiles-general.html) connection such as `it2ssh` or an SSH profile with SSH Integration enabled
 
 ## Install
 
@@ -53,7 +53,7 @@ test -e "${HOME}/.iterm2_shell_integration.zsh" &&
   source "${HOME}/.iterm2_shell_integration.zsh" || true
 ```
 
-Set these before starting or attaching to the persistent tmux/Pi process.
+Set these before starting or attaching to the persistent tmux/Pi process. iTerm2 documents this tmux opt-in under [Shell Integration limitations](https://iterm2.com/documentation-shell-integration.html#limitations).
 
 The extension activates automatically when `iterm2_hostname` is present, or when it detects both a direct iTerm2 environment and a remote SSH environment.
 
@@ -83,7 +83,7 @@ export PI_ITERM2_USER="$USER"
 
 1. Have Pi print a raw remote path on one terminal line.
 2. Select the complete path in iTerm2.
-3. Right-click and choose **Download with scp**.
+3. Right-click and choose [**Download with scp**](https://iterm2.com/documentation-shell-integration.html#download-with-scp).
 
 Paths that visually wrap onto multiple hard terminal rows may not be accepted by iTerm2. Widen the pane, print a shorter relative path, or create a short temporary symlink.
 
