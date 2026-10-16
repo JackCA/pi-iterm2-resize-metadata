@@ -1,7 +1,5 @@
 export const FULL_REDRAW_CLEAR = "\x1b[2J\x1b[H\x1b[3J";
 
-const CONTROL_CHARACTERS = /[\x00-\x1f\x7f-\x9f]/g;
-
 export type ActivationMode = "auto" | "always" | "off";
 export type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -30,24 +28,33 @@ export interface RedrawInjector {
 }
 
 export function sanitizeOscValue(value: string): string {
-  return value.replace(CONTROL_CHARACTERS, "");
+  let sanitized = "";
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    const isControl = codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+    if (!isControl) {
+      sanitized += character;
+    }
+  }
+  return sanitized;
 }
 
 export function createMetadataSequence(identity: MetadataIdentity): string | undefined {
   const user = sanitizeOscValue(identity.user);
   const host = sanitizeOscValue(identity.host);
   const directory = sanitizeOscValue(identity.directory);
-  if (!user || !host || !directory) return undefined;
+  if (!(user && host && directory)) {
+    return undefined;
+  }
 
-  return (
-    `\x1b]1337;RemoteHost=${user}@${host}\x07` +
-    `\x1b]1337;CurrentDir=${directory}\x07`
-  );
+  return `\x1b]1337;RemoteHost=${user}@${host}\x07` + `\x1b]1337;CurrentDir=${directory}\x07`;
 }
 
 function firstNonempty(...values: Array<string | undefined>): string {
   for (const value of values) {
-    if (value?.trim()) return value.trim();
+    if (value?.trim()) {
+      return value.trim();
+    }
   }
   return "";
 }
@@ -86,6 +93,52 @@ export function resolveConfiguration(
   return { mode, enabled: false, user, host, reason: "no iTerm2 remote-session evidence" };
 }
 
+function findInsertionPoints(
+  combined: string,
+  marker: string,
+  tailLength: number,
+  chunkLength: number,
+): number[] {
+  const insertionPoints: number[] = [];
+  let searchFrom = 0;
+
+  while (true) {
+    const index = combined.indexOf(marker, searchFrom);
+    if (index < 0) {
+      return insertionPoints;
+    }
+
+    const end = index + marker.length;
+    const point = end - tailLength;
+    if (end > tailLength && point >= 0 && point <= chunkLength) {
+      insertionPoints.push(point);
+    }
+    searchFrom = end;
+  }
+}
+
+function insertSequences(
+  chunk: string,
+  insertionPoints: number[],
+  getSequence: () => string | undefined,
+): TransformResult {
+  let output = "";
+  let offset = 0;
+  let injections = 0;
+
+  for (const point of insertionPoints) {
+    const sequence = getSequence();
+    output += chunk.slice(offset, point);
+    if (sequence) {
+      output += sequence;
+      injections += 1;
+    }
+    offset = point;
+  }
+  output += chunk.slice(offset);
+  return { output, injections };
+}
+
 /**
  * Creates a stateful transform that inserts metadata after Pi's full-redraw
  * clear marker. It also recognizes a marker split across adjacent writes.
@@ -94,48 +147,25 @@ export function createRedrawInjector(
   getSequence: () => string | undefined,
   marker = FULL_REDRAW_CLEAR,
 ): RedrawInjector {
-  if (!marker) throw new Error("The redraw marker must not be empty");
+  if (!marker) {
+    throw new Error("The redraw marker must not be empty");
+  }
 
   let tail = "";
 
   return {
     transform(chunk: string): TransformResult {
-      if (!chunk) return { output: chunk, injections: 0 };
+      if (!chunk) {
+        return { output: chunk, injections: 0 };
+      }
 
       const combined = tail + chunk;
-      const tailLength = tail.length;
-      const insertionPoints: number[] = [];
-      let searchFrom = 0;
-
-      while (true) {
-        const index = combined.indexOf(marker, searchFrom);
-        if (index < 0) break;
-
-        const end = index + marker.length;
-        if (end > tailLength) {
-          const point = end - tailLength;
-          if (point >= 0 && point <= chunk.length) insertionPoints.push(point);
-        }
-        searchFrom = end;
-      }
-
+      const insertionPoints = findInsertionPoints(combined, marker, tail.length, chunk.length);
       tail = combined.slice(-Math.max(0, marker.length - 1));
-      if (insertionPoints.length === 0) return { output: chunk, injections: 0 };
 
-      let output = "";
-      let offset = 0;
-      let injections = 0;
-      for (const point of insertionPoints) {
-        const sequence = getSequence();
-        output += chunk.slice(offset, point);
-        if (sequence) {
-          output += sequence;
-          injections += 1;
-        }
-        offset = point;
-      }
-      output += chunk.slice(offset);
-      return { output, injections };
+      return insertionPoints.length === 0
+        ? { output: chunk, injections: 0 }
+        : insertSequences(chunk, insertionPoints, getSequence);
     },
 
     reset() {

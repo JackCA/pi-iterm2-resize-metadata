@@ -1,0 +1,18 @@
+# Local quality checks, not workflow approval or complete staged-candidate proof.
+# Typecheck uses the working tree. Ordinary hooks are bypassable.
+lefthook: "node node_modules/lefthook/bin/index.js"
+assert_lefthook_installed: true
+no_auto_install: true
+post-merge:
+  commands:
+    install:
+      run: npm ci --ignore-scripts --prefer-offline
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,yaml,yml}"
+      run: "node node_modules/@biomejs/biome/bin/biome check --no-errors-on-unmatched {staged_files}"
+    typecheck:
+      glob: "*.{ts,tsx,json,jsonc}"
+      run: "node node_modules/typescript/bin/tsc --noEmit"

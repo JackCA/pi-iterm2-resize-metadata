@@ -111,9 +111,18 @@ There are no timers, background processes, network requests, clipboard reads, or
 
 ## Development
 
-Run the unit tests:
+Install the pinned development tools and Git hooks:
 
 ```bash
+npm install
+npm run hooks:install
+```
+
+Run the same checks used by CI and the pre-commit hook:
+
+```bash
+npm run lint
+npm run typecheck
 npm test
 ```
 
@@ -122,6 +131,8 @@ Inspect the publishable package:
 ```bash
 npm run pack:check
 ```
+
+The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and Lefthook structure as Angel2. The pre-commit hook checks staged files with Biome and type-checks the working tree; the post-merge hook refreshes dependencies from the lockfile.
 
 The tests cover configuration resolution, OSC sanitization, complete and split redraw markers, repeated markers, and matcher reset behavior.
 

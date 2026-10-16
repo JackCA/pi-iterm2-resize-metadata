@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  FULL_REDRAW_CLEAR,
   createMetadataSequence,
   createRedrawInjector,
+  FULL_REDRAW_CLEAR,
   resolveConfiguration,
   sanitizeOscValue,
 } from "../src/core.ts";
+
+function environment(entries: Array<readonly [string, string]>): Record<string, string> {
+  return Object.fromEntries(entries);
+}
 
 test("creates iTerm2 RemoteHost and CurrentDir metadata", () => {
   assert.equal(
@@ -27,13 +31,13 @@ test("refuses incomplete metadata identities", () => {
 
 test("resolves explicit configuration before shell-integration defaults", () => {
   const config = resolveConfiguration(
-    {
-      PI_ITERM2_METADATA: "always",
-      PI_ITERM2_USER: "explicit-user",
-      PI_ITERM2_HOST: "ssh-alias",
-      USER: "fallback-user",
-      iterm2_hostname: "fallback-host",
-    },
+    environment([
+      ["PI_ITERM2_METADATA", "always"],
+      ["PI_ITERM2_USER", "explicit-user"],
+      ["PI_ITERM2_HOST", "ssh-alias"],
+      ["USER", "fallback-user"],
+      ["iterm2_hostname", "fallback-host"],
+    ]),
     "system-host",
   );
   assert.deepEqual(config, {
@@ -47,7 +51,11 @@ test("resolves explicit configuration before shell-integration defaults", () => 
 
 test("auto mode recognizes iterm2_hostname in remote tmux sessions", () => {
   const config = resolveConfiguration(
-    { USER: "alice", iterm2_hostname: "devbox", TERM_PROGRAM: "tmux" },
+    environment([
+      ["USER", "alice"],
+      ["iterm2_hostname", "devbox"],
+      ["TERM_PROGRAM", "tmux"],
+    ]),
     "devbox.local",
   );
   assert.equal(config.enabled, true);
@@ -55,7 +63,13 @@ test("auto mode recognizes iterm2_hostname in remote tmux sessions", () => {
 });
 
 test("auto mode remains inactive without iTerm2 remote-session evidence", () => {
-  const config = resolveConfiguration({ USER: "alice", TERM_PROGRAM: "tmux" }, "host.local");
+  const config = resolveConfiguration(
+    environment([
+      ["USER", "alice"],
+      ["TERM_PROGRAM", "tmux"],
+    ]),
+    "host.local",
+  );
   assert.equal(config.enabled, false);
 });
 

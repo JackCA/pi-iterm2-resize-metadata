@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Preserve iTerm2 remote-host and current-directory metadata across Pi TUI redraws.",
   "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "license": "MIT",
   "author": "Jack Anderson <JackCA@users.noreply.github.com>",
   "keywords": [
@@ -22,12 +25,22 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check extensions src tests package.json tsconfig.json biome.json",
+    "hooks:install": "lefthook install",
     "pack:check": "npm pack --dry-run"
   },
   "pi": {
     "extensions": [
       "./extensions/index.ts"
     ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.7",
+    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@types/node": "24.10.1",
+    "lefthook": "2.1.10",
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

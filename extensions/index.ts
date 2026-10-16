@@ -1,10 +1,10 @@
 import os from "node:os";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   createMetadataSequence,
   createRedrawInjector,
-  resolveConfiguration,
   type ResolvedConfiguration,
+  resolveConfiguration,
 } from "../src/core.ts";
 
 type StdoutWrite = typeof process.stdout.write;
@@ -22,27 +22,27 @@ function installWriteInterceptor(getSequence: () => string | undefined): WriteIn
   let active = true;
   let count = 0;
 
-  const wrapper = function (
-    this: NodeJS.WriteStream,
-    chunk: any,
-    ...args: any[]
-  ): boolean {
+  const wrapper = function (this: NodeJS.WriteStream, chunk: unknown, ...args: unknown[]): boolean {
     if (!active || typeof chunk !== "string") {
-      if (typeof chunk !== "string") injector.reset();
-      return downstream.call(this, chunk, ...args);
+      if (typeof chunk !== "string") {
+        injector.reset();
+      }
+      return Reflect.apply(downstream, this, [chunk, ...args]) as boolean;
     }
 
     const result = injector.transform(chunk);
     count += result.injections;
-    return downstream.call(this, result.output, ...args);
-  } as StdoutWrite;
+    return Reflect.apply(downstream, this, [result.output, ...args]) as boolean;
+  } as unknown as StdoutWrite;
 
   stdout.write = wrapper;
 
   return {
     uninstall() {
       active = false;
-      if (stdout.write === wrapper) stdout.write = downstream;
+      if (stdout.write === wrapper) {
+        stdout.write = downstream;
+      }
       injector.reset();
     },
     writeDirect(data: string) {
@@ -54,7 +54,8 @@ function installWriteInterceptor(getSequence: () => string | undefined): WriteIn
   };
 }
 
-export default function (pi: ExtensionAPI) {
+// biome-ignore lint/style/noDefaultExport: Pi packages require a default extension factory.
+export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
   let cwd = process.cwd();
   let configuration: ResolvedConfiguration = resolveConfiguration(process.env, os.hostname());
   let interceptor: WriteInterceptor | undefined;
@@ -68,9 +69,14 @@ export default function (pi: ExtensionAPI) {
 
   const refresh = () => {
     const metadata = sequence();
-    if (!metadata) return false;
-    if (interceptor) interceptor.writeDirect(metadata);
-    else process.stdout.write(metadata);
+    if (!metadata) {
+      return false;
+    }
+    if (interceptor) {
+      interceptor.writeDirect(metadata);
+    } else {
+      process.stdout.write(metadata);
+    }
     return true;
   };
 
@@ -79,21 +85,23 @@ export default function (pi: ExtensionAPI) {
     interceptor = undefined;
   };
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", (_event, ctx) => {
     stop();
     cwd = ctx.cwd;
     configuration = resolveConfiguration(process.env, os.hostname());
-    if (ctx.mode !== "tui" || !configuration.enabled || !sequence()) return;
+    if (ctx.mode !== "tui" || !configuration.enabled || !sequence()) {
+      return;
+    }
 
     interceptor = installWriteInterceptor(sequence);
     refresh();
   });
 
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", () => {
     stop();
   });
 
-  const refreshHandler = async (_args: string, ctx: ExtensionContext) => {
+  const refreshHandler = (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
     cwd = ctx.cwd;
     configuration = resolveConfiguration(process.env, os.hostname());
     const ok = refresh();
@@ -103,6 +111,7 @@ export default function (pi: ExtensionAPI) {
         : "Could not emit iTerm2 metadata: user, host, or working directory is empty",
       ok ? "info" : "error",
     );
+    return Promise.resolve();
   };
 
   pi.registerCommand("iterm-metadata-refresh", {
@@ -118,7 +127,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("iterm-metadata-status", {
     description: "Show iTerm2 redraw-metadata status",
-    handler: async (_args, ctx) => {
+    handler: (_args, ctx) => {
       configuration = resolveConfiguration(process.env, os.hostname());
       const state = interceptor ? "active" : "inactive";
       const count = interceptor?.injectionCount() ?? 0;
@@ -126,6 +135,7 @@ export default function (pi: ExtensionAPI) {
         `iTerm2 metadata ${state}; mode=${configuration.mode}; target=${configuration.user}@${configuration.host}; redraws=${count}; ${configuration.reason}`,
         interceptor ? "info" : "warning",
       );
+      return Promise.resolve();
     },
   });
 }
