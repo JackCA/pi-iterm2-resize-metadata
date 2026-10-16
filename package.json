@@ -1,0 +1,48 @@
+{
+  "name": "pi-iterm2-resize-metadata",
+  "version": "0.1.0",
+  "description": "Preserve iTerm2 remote-host and current-directory metadata across Pi TUI redraws.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jack Anderson <JackCA@users.noreply.github.com>",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "iterm2",
+    "tmux",
+    "scp"
+  ],
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "pack:check": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JackCA/pi-iterm2-resize-metadata.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JackCA/pi-iterm2-resize-metadata/issues"
+  },
+  "homepage": "https://github.com/JackCA/pi-iterm2-resize-metadata#readme"
+}
