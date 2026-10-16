@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/JackCA/pi-iterm2-resize-metadata/compare/v0.1.0...v0.1.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* clarify extension name in Pi startup list ([7e02a27](https://github.com/JackCA/pi-iterm2-resize-metadata/commit/7e02a270f6d6bbd61e6453657a6a6c9f47a360e3))
+
 ## 0.1.0 (2026-10-16)
 
 
