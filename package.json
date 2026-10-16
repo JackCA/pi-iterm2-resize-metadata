@@ -35,7 +35,7 @@
   },
   "pi": {
     "extensions": [
-      "./extensions/index.ts"
+      "./extensions/iterm2-resize-metadata/index.ts"
     ]
   },
   "devDependencies": {

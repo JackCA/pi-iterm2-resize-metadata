@@ -5,7 +5,7 @@ import {
   createRedrawInjector,
   type ResolvedConfiguration,
   resolveConfiguration,
-} from "../src/core.ts";
+} from "../../src/core.ts";
 
 type StdoutWrite = typeof process.stdout.write;
 
