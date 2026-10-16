@@ -41,8 +41,6 @@ pi install ./pi-iterm2-resize-metadata
 
 Restart Pi or run `/reload` after installation.
 
-If you previously installed a standalone copy of the extension under `~/.pi/agent/extensions/`, remove it before installing this package to avoid loading both copies.
-
 ## Configure the remote shell
 
 The hostname reported to iTerm2 should normally match the SSH destination or alias used to establish the integrated connection. For zsh:
