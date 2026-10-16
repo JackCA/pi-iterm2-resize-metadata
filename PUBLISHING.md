@@ -2,7 +2,7 @@
 
 This repository uses Release Please to version the package, update the changelog, create immutable `vX.Y.Z` tags, and create GitHub Releases.
 
-It does not publish to npm automatically. Git-tag installation remains the default distribution path.
+Release Please also publishes completed releases to npm through npm Trusted Publishing. npm publication makes the package discoverable in the [Pi package gallery](https://pi.dev/packages).
 
 ## Release flow
 
@@ -11,9 +11,11 @@ It does not publish to npm automatically. Git-tag installation remains the defau
 3. Review the proposed version, `package.json`, lockfile, manifest, and changelog.
 4. Merge the release pull request after CI passes.
 5. Release Please creates the version tag and GitHub Release.
-6. Verify installation from the immutable tag:
+6. The same workflow verifies and publishes that exact version to npm through OIDC.
+7. Verify both installation sources:
 
    ```bash
+   pi install npm:pi-iterm2-resize-metadata
    pi install git:github.com/JackCA/pi-iterm2-resize-metadata@vX.Y.Z
    ```
 
@@ -58,6 +60,24 @@ npm run check
 
 `npm run release:check` validates both states: an empty pre-release manifest paired with `initial-version`, or a released manifest whose version agrees with the package and changelog. It also checks the package name and tag convention.
 
-## Optional npm publication
+## npm trusted publishing
 
-If npm publication is added later, use npm trusted publishing with provenance rather than a long-lived automation token. Publish only after the GitHub release gate succeeds, and verify that the npm version exactly matches the release tag.
+The first package version must be published manually because npm only allows trusted-publisher configuration after a package exists. Bootstrap from the exact released tag, not from an unreleased working tree:
+
+```bash
+git worktree add /tmp/pi-iterm2-resize-metadata-v0.1.0 v0.1.0
+cd /tmp/pi-iterm2-resize-metadata-v0.1.0
+npm ci
+npm run check
+npm publish --access public
+```
+
+Then configure the package's npm **Trusted Publisher**:
+
+- Provider: GitHub Actions
+- Organization or user: `JackCA`
+- Repository: `pi-iterm2-resize-metadata`
+- Workflow filename: `release-please.yml`
+- Environment: leave blank
+
+Future Release Please releases publish without an npm token. The publish job has only `contents: read` and `id-token: write`; npm automatically attaches provenance for the public GitHub repository. Do not add a long-lived `NPM_TOKEN`.

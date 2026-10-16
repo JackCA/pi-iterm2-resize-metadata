@@ -20,7 +20,13 @@ This extension inserts fresh iTerm2 OSC 1337 metadata immediately after Pi's ful
 
 ## Install
 
-From GitHub:
+From the Pi package gallery/npm:
+
+```bash
+pi install npm:pi-iterm2-resize-metadata
+```
+
+From an immutable GitHub release:
 
 ```bash
 pi install git:github.com/JackCA/pi-iterm2-resize-metadata@v0.1.0

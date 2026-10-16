@@ -8,6 +8,10 @@
   },
   "license": "MIT",
   "author": "Jack Anderson <JackCA@users.noreply.github.com>",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
