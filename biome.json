@@ -11,9 +11,13 @@
       "extensions/**",
       "src/**",
       "tests/**",
+      "scripts/**",
       "package.json",
       "tsconfig.json",
       "biome.json",
+      "commitlint.config.mjs",
+      "release-please-config.json",
+      ".release-please-manifest.json",
       "!**/node_modules",
       "!**/dist",
       "!**/*.tsbuildinfo"

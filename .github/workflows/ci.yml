@@ -14,12 +14,14 @@ jobs:
         node-version: [22, 24]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run pack:check
+      - name: Validate pull-request title
+        if: github.event_name == 'pull_request'
+        env:
+          COMMIT_MESSAGE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$COMMIT_MESSAGE" | npm exec -- commitlint
+      - run: npm run check

@@ -3,10 +3,18 @@
 lefthook: "node node_modules/lefthook/bin/index.js"
 assert_lefthook_installed: true
 no_auto_install: true
+commit-msg:
+  commands:
+    conventional:
+      run: "node node_modules/@commitlint/cli/cli.js --edit {1}"
 post-merge:
   commands:
     install:
       run: npm ci --ignore-scripts --prefer-offline
+pre-push:
+  commands:
+    check:
+      run: npm run check
 pre-commit:
   parallel: true
   commands:

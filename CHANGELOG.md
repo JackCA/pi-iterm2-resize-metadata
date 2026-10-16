@@ -9,3 +9,4 @@ All notable changes to this project will be documented here.
 - Detect redraw markers split across terminal writes.
 - Add automatic activation, explicit environment configuration, refresh/status commands, tests, and lifecycle-safe cleanup.
 - Add strict Biome formatting and linting, TypeScript checks, Lefthook quality gates, and GitHub Actions CI.
+- Add Conventional Commit validation and Release Please automation for SemVer, tags, changelogs, and GitHub Releases.

@@ -132,7 +132,9 @@ Inspect the publishable package:
 npm run pack:check
 ```
 
-The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and Lefthook structure as Angel2. The pre-commit hook checks staged files with Biome and type-checks the working tree; the post-merge hook refreshes dependencies from the lockfile.
+The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and Lefthook structure as Angel2. The pre-commit hook checks staged files with Biome and type-checks the working tree, Commitlint validates commit messages, the pre-push hook runs the complete quality suite, and the post-merge hook refreshes dependencies from the lockfile.
+
+Release Please derives versions from Conventional Commits, maintains a release pull request, and creates immutable `vX.Y.Z` tags and GitHub Releases after that pull request is merged. See [PUBLISHING.md](PUBLISHING.md).
 
 The tests cover configuration resolution, OSC sanitization, complete and split redraw markers, repeated markers, and matcher reset behavior.
 
