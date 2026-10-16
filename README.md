@@ -138,6 +138,19 @@ Release Please derives versions from Conventional Commits, maintains a release p
 
 The tests cover configuration resolution, OSC sanitization, complete and split redraw markers, repeated markers, and matcher reset behavior.
 
+## Repository-scoped GitHub access
+
+For maintainers who run Pi inside this checkout, the committed `.envrc` optionally loads a gitignored `.env.local`:
+
+```bash
+cp .env.local.example .env.local
+chmod 600 .env.local
+$EDITOR .env.local
+direnv allow
+```
+
+Use a fine-grained `GH_TOKEN` restricted to this repository. Start Pi from this directory after direnv loads the environment. Never commit `.env.local` or reuse the local agent token as the Release Please workflow token.
+
 ## Security
 
 Pi extensions execute with Pi's operating-system permissions. Review extension source before installation. This extension emits the current username, configured hostname, and Pi working directory to the attached terminal. See [SECURITY.md](SECURITY.md).
