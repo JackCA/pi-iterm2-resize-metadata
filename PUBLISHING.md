@@ -17,7 +17,7 @@ It does not publish to npm automatically. Git-tag installation remains the defau
    pi install git:github.com/JackCA/pi-iterm2-resize-metadata@vX.Y.Z
    ```
 
-The release manifest starts at `0.1.0` and uses the repository's tooling commit as its bootstrap boundary. Create the one-time `v0.1.0` tag when publishing the initial repository. Subsequent tags are automatic.
+The release manifest intentionally starts empty because it records versions that have already been released. The package configuration sets `initial-version` to `0.1.0` and uses the repository's release-automation commit as the bootstrap boundary. The first releasable Conventional Commit therefore opens the `v0.1.0` release pull request; merging it creates the initial tag and GitHub Release automatically. No manual bootstrap tag is required.
 
 ## Version rules
 
@@ -56,7 +56,7 @@ npm ci
 npm run check
 ```
 
-`npm run release:check` ensures the package version, Release Please manifest, package name, tag convention, and changelog agree.
+`npm run release:check` validates both states: an empty pre-release manifest paired with `initial-version`, or a released manifest whose version agrees with the package and changelog. It also checks the package name and tag convention.
 
 ## Optional npm publication
 

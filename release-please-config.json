@@ -1,11 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "bootstrap-sha": "d0dc489efbc29a2ef3163d546901e934d7903b73",
+  "bootstrap-sha": "b260b525cac2a0106591c04954884326648371da",
   "packages": {
     ".": {
       "release-type": "node",
       "package-name": "pi-iterm2-resize-metadata",
       "changelog-path": "CHANGELOG.md",
+      "initial-version": "0.1.0",
       "include-component-in-tag": false,
       "include-v-in-tag": true
     }
