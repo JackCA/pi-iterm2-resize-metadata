@@ -1,6 +1,6 @@
 {
   "name": "pi-iterm2-resize-metadata",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Preserve iTerm2 remote-host and current-directory metadata across Pi TUI redraws.",
   "type": "module",
   "engines": {
