@@ -64,6 +64,7 @@ The extension activates automatically when `iterm2_hostname` is present, or when
 | `PI_ITERM2_METADATA` | `auto`, `always`, `off` | Activation mode; default is `auto` |
 | `PI_ITERM2_HOST` | hostname or SSH alias | Overrides `iterm2_hostname` and the system hostname |
 | `PI_ITERM2_USER` | remote username | Overrides `USER` and `LOGNAME` |
+| `PI_ITERM2_CURRENT_DIR_MODE` | `cwd-tmp`, `cwd` | Advertised iTerm2 directory; default is `cwd-tmp` |
 
 Example explicit configuration:
 
@@ -72,6 +73,28 @@ export PI_ITERM2_METADATA=always
 export PI_ITERM2_HOST=my-ssh-alias
 export PI_ITERM2_USER="$USER"
 ```
+
+### Keeping iTerm2 uploads out of the project root
+
+iTerm2's **Upload and Paste Path** action always uploads to the session's advertised `CurrentDir`;
+it has no separate upload-destination setting. By default, this extension creates `<Pi cwd>/tmp`
+and advertises that directory to iTerm2, so dropped files and pasted screenshots do not accumulate
+at the project root.
+
+Add `tmp/` to each project's Git ignore rules if it is not already ignored. This repository includes
+that rule. The extension does not modify other repositories' ignore configuration.
+
+To restore the original behavior and advertise Pi's exact working directory, set this before
+starting Pi:
+
+```zsh
+export PI_ITERM2_CURRENT_DIR_MODE=cwd
+```
+
+Because iTerm2 has only one `CurrentDir` value, the default also makes relative **Download with
+scp** paths and other iTerm2 directory-aware features resolve against `<cwd>/tmp`. Absolute remote
+paths are unaffected. `/iterm-metadata-status` reports both the selected mode and advertised
+directory.
 
 ### Terminal capability diagnostics
 
@@ -141,7 +164,7 @@ detection gaps, so this healthy state does not produce a warning.
 ## Commands
 
 - `/iterm-metadata-refresh` — emit metadata immediately for subsequent output
-- `/iterm-metadata-status` — show activation, identity, redraw count, terminal path, hyperlinks, and image state
+- `/iterm-metadata-status` — show activation, identity, advertised directory, redraw count, terminal path, hyperlinks, and image state
 - `/iterm-scp-refresh` — compatibility alias for the refresh command
 
 ## Using contextual downloads
@@ -164,13 +187,14 @@ It inserts:
 
 ```text
 OSC 1337;RemoteHost=user@host BEL
-OSC 1337;CurrentDir=/working/directory BEL
+OSC 1337;CurrentDir=/working/directory/tmp BEL
 ```
 
 The matcher handles a redraw sequence split across adjacent writes. Nonmatching writes are passed through unchanged, binary writes reset the matcher, and the wrapper is disabled and removed during session shutdown.
 
 For diagnostics, the extension reads Pi's terminal capability settings from user settings and
-trusted project settings and runs a bounded `tmux display-message` query when inside tmux. There
+trusted project settings and runs a bounded `tmux display-message` query when inside tmux. In the
+default `cwd-tmp` mode it also creates `<cwd>/tmp` when an enabled interactive session starts. There
 are no timers, background processes, network requests, clipboard reads, or file transfers.
 
 ## Limitations
@@ -179,6 +203,7 @@ are no timers, background processes, network requests, clipboard reads, or file 
 - A future Pi renderer could change the redraw sequence. In that case the extension fails open: terminal output continues normally, but metadata will not be restored automatically.
 - This fixes metadata loss; it does not change iTerm2's requirement that the selected SCP path occupy one terminal line.
 - The extension enables metadata. iTerm2 still controls authentication and the actual SCP transfer.
+- The default `cwd-tmp` mode changes all iTerm2 features that use `CurrentDir`, not only uploads. Use absolute paths or set `PI_ITERM2_CURRENT_DIR_MODE=cwd` when exact relative-path resolution is more important.
 - With remote-host and current-directory metadata active, iTerm2 Semantic History may treat ordinary words as possible relative remote paths while Command is held. This is separate from OSC 8 linking and is the trade-off that enables contextual SCP actions.
 
 ## Development
@@ -206,7 +231,7 @@ The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and 
 
 Release Please derives versions from Conventional Commits, maintains a release pull request, and creates immutable `vX.Y.Z` tags and GitHub Releases after that pull request is merged. See [PUBLISHING.md](PUBLISHING.md).
 
-The tests cover configuration resolution, OSC sanitization, iTerm2/tmux hyperlink and image diagnostics, complete and split redraw markers, repeated markers, and matcher reset behavior.
+The tests cover configuration and metadata-directory resolution, OSC sanitization, iTerm2/tmux hyperlink and image diagnostics, complete and split redraw markers, repeated markers, and matcher reset behavior.
 
 ## Repository-scoped GitHub access
 
@@ -223,7 +248,7 @@ Use a fine-grained `GH_TOKEN` restricted to this repository. Start Pi from this 
 
 ## Security
 
-Pi extensions execute with Pi's operating-system permissions. Review extension source before installation. This extension emits the current username, configured hostname, and Pi working directory to the attached terminal. See [SECURITY.md](SECURITY.md).
+Pi extensions execute with Pi's operating-system permissions. Review extension source before installation. This extension emits the current username, configured hostname, and either `<cwd>/tmp` or the Pi working directory to the attached terminal. See [SECURITY.md](SECURITY.md).
 
 ## License
 

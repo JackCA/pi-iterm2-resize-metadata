@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type {
@@ -20,6 +20,10 @@ import {
   resolveItermDiagnostics,
   type TmuxClientInfo,
 } from "../../src/core.ts";
+import {
+  createMetadataDirectoryResolver,
+  type MetadataDirectoryMode,
+} from "../../src/metadata-directory.ts";
 
 type StdoutWrite = typeof process.stdout.write;
 
@@ -164,9 +168,51 @@ function installWriteInterceptor(getSequence: () => string | undefined): WriteIn
   };
 }
 
+interface CurrentDirectoryController {
+  readonly directory: string;
+  readonly mode: MetadataDirectoryMode | "fallback";
+  readonly error: string | undefined;
+  update(cwd: string): void;
+}
+
+function createCurrentDirectoryController(): CurrentDirectoryController {
+  let directory = process.cwd();
+  let mode: MetadataDirectoryMode | "fallback" = "cwd";
+  let error: string | undefined;
+  const resolve = createMetadataDirectoryResolver((cwd) => {
+    const projectTmp = path.join(cwd, "tmp");
+    mkdirSync(projectTmp, { recursive: true });
+    return projectTmp;
+  });
+
+  return {
+    get directory() {
+      return directory;
+    },
+    get mode() {
+      return mode;
+    },
+    get error() {
+      return error;
+    },
+    update(cwd) {
+      try {
+        const resolution = resolve(cwd, process.env);
+        directory = resolution.directory;
+        mode = resolution.mode;
+        error = undefined;
+      } catch (cause) {
+        directory = cwd;
+        mode = "fallback";
+        error = cause instanceof Error ? cause.message : String(cause);
+      }
+    },
+  };
+}
+
 // biome-ignore lint/style/noDefaultExport: Pi packages require a default extension factory.
 export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
-  let cwd = process.cwd();
+  const currentDirectory = createCurrentDirectoryController();
   let configuration: ResolvedConfiguration = resolveConfiguration(process.env, os.hostname());
   let interceptor: WriteInterceptor | undefined;
   let capabilityWarningShown = false;
@@ -175,7 +221,7 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
     createMetadataSequence({
       user: configuration.user,
       host: configuration.host,
-      directory: cwd,
+      directory: currentDirectory.directory,
     });
 
   const refresh = () => {
@@ -198,26 +244,28 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     stop();
-    cwd = ctx.cwd;
     configuration = resolveConfiguration(process.env, os.hostname());
-    const metadata = sequence();
-    if (ctx.mode !== "tui") {
+    if (ctx.mode !== "tui" || !configuration.enabled) {
       return;
     }
-    if (configuration.enabled && !metadata) {
+    currentDirectory.update(ctx.cwd);
+    const metadata = sequence();
+    if (!metadata) {
       ctx.ui.notify(
         "iTerm2 metadata is enabled, but user, host, or working directory is empty",
         "warning",
       );
       return;
     }
+    if (currentDirectory.error) {
+      ctx.ui.notify(
+        `Could not create ${path.join(ctx.cwd, "tmp")}; using Pi's working directory for iTerm2 metadata instead: ${currentDirectory.error}`,
+        "warning",
+      );
+    }
 
     const diagnostics = currentDiagnostics(ctx);
-    if (
-      configuration.enabled &&
-      (diagnostics.hyperlinkMismatch || diagnostics.imageMismatch) &&
-      !capabilityWarningShown
-    ) {
+    if ((diagnostics.hyperlinkMismatch || diagnostics.imageMismatch) && !capabilityWarningShown) {
       capabilityWarningShown = true;
       const message =
         diagnostics.hyperlinkMismatch && diagnostics.imageMismatch
@@ -226,9 +274,6 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
             ? "iTerm2 tmux integration detected, but Pi OSC 8 hyperlinks are disabled. Set terminal.hyperlinks=true in Pi settings and run /reload."
             : 'iTerm2 tmux integration detected, but Pi inline images are not using the iTerm2 protocol. Set terminal.images="iterm2" in Pi settings and run /reload.';
       ctx.ui.notify(message, "warning");
-    }
-    if (!configuration.enabled) {
-      return;
     }
 
     interceptor = installWriteInterceptor(sequence);
@@ -240,14 +285,14 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
   });
 
   const refreshHandler = (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
-    cwd = ctx.cwd;
+    currentDirectory.update(ctx.cwd);
     configuration = resolveConfiguration(process.env, os.hostname());
     const ok = refresh();
     ctx.ui.notify(
       ok
-        ? `Refreshed iTerm2 metadata for ${configuration.user}@${configuration.host}`
+        ? `Refreshed iTerm2 metadata for ${configuration.user}@${configuration.host}; directory=${currentDirectory.directory}`
         : "Could not emit iTerm2 metadata: user, host, or working directory is empty",
-      ok ? "info" : "error",
+      !ok ? "error" : currentDirectory.error ? "warning" : "info",
     );
     return Promise.resolve();
   };
@@ -271,8 +316,11 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
       const count = interceptor?.injectionCount() ?? 0;
       const diagnostics = currentDiagnostics(ctx);
       ctx.ui.notify(
-        `iTerm2 metadata ${state}; mode=${configuration.mode}; target=${configuration.user}@${configuration.host}; redraws=${count}; ${formatDiagnostics(diagnostics)}; ${configuration.reason}`,
-        interceptor && !diagnostics.hyperlinkMismatch && !diagnostics.imageMismatch
+        `iTerm2 metadata ${state}; mode=${configuration.mode}; target=${configuration.user}@${configuration.host}; current-dir-mode=${currentDirectory.mode}; directory=${currentDirectory.directory}; redraws=${count}; ${formatDiagnostics(diagnostics)}; ${configuration.reason}`,
+        interceptor &&
+          !diagnostics.hyperlinkMismatch &&
+          !diagnostics.imageMismatch &&
+          !currentDirectory.error
           ? "info"
           : "warning",
       );
