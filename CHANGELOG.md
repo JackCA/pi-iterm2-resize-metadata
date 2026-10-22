@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/JackCA/pi-iterm2-resize-metadata/compare/v0.1.1...v0.2.0) (2026-10-22)
+
+
+### Features
+
+* add iTerm2 terminal diagnostics ([#3](https://github.com/JackCA/pi-iterm2-resize-metadata/issues/3)) ([151812a](https://github.com/JackCA/pi-iterm2-resize-metadata/commit/151812a96515f5db1034a86efb7474eb418c143a))
+
 ## [0.1.1](https://github.com/JackCA/pi-iterm2-resize-metadata/compare/v0.1.0...v0.1.1) (2026-10-16)
 
 
