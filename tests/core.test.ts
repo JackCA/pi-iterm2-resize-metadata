@@ -4,8 +4,12 @@ import {
   createMetadataSequence,
   createRedrawInjector,
   FULL_REDRAW_CLEAR,
+  hasDirectItermEvidence,
+  hasItermTmuxIntegrationEvidence,
+  isTmuxEnvironment,
   resolveConfiguration,
   resolveHyperlinkCapability,
+  resolveImageCapability,
   resolveItermDiagnostics,
   sanitizeOscValue,
 } from "../src/core.ts";
@@ -29,6 +33,19 @@ test("refuses incomplete metadata identities", () => {
   assert.equal(createMetadataSequence({ user: "", host: "host", directory: "/tmp" }), undefined);
   assert.equal(createMetadataSequence({ user: "user", host: "", directory: "/tmp" }), undefined);
   assert.equal(createMetadataSequence({ user: "user", host: "host", directory: "" }), undefined);
+});
+
+test("centralizes terminal-path evidence detection", () => {
+  assert.equal(hasDirectItermEvidence(environment([["TERM_PROGRAM", "iTerm.app"]])), true);
+  assert.equal(hasDirectItermEvidence(environment([["LC_TERMINAL", "iTerm2"]])), true);
+  assert.equal(hasDirectItermEvidence(environment([["TERM_PROGRAM", "Apple_Terminal"]])), false);
+  assert.equal(isTmuxEnvironment(environment([["TERM", "tmux-256color"]])), true);
+  assert.equal(
+    hasItermTmuxIntegrationEvidence(
+      environment([["ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX", "1"]]),
+    ),
+    true,
+  );
 });
 
 test("resolves explicit configuration before shell-integration defaults", () => {
@@ -100,7 +117,7 @@ test("uses tmux client features for automatic hyperlink detection", () => {
   );
 });
 
-test("diagnoses Pi hyperlink false-negatives in iTerm2 tmux control mode", () => {
+test("diagnoses Pi capability false-negatives in iTerm2 tmux control mode", () => {
   const diagnostics = resolveItermDiagnostics(
     environment([
       ["TMUX", "/tmp/tmux/default,1,0"],
@@ -108,27 +125,35 @@ test("diagnoses Pi hyperlink false-negatives in iTerm2 tmux control mode", () =>
       ["ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX", "1"],
     ]),
     false,
+    undefined,
+    true,
     { controlMode: true, features: [] },
   );
   assert.deepEqual(diagnostics, {
     path: "tmux-control",
     hyperlinksEnabled: false,
     hyperlinkMismatch: true,
+    imageProtocol: undefined,
+    showImages: true,
+    imageMismatch: true,
     tmuxFeatures: [],
   });
 });
 
-test("accepts an explicit Pi hyperlink override in iTerm2 tmux control mode", () => {
+test("accepts explicit Pi capability overrides in iTerm2 tmux control mode", () => {
   const diagnostics = resolveItermDiagnostics(
     environment([
       ["TMUX", "/tmp/tmux/default,1,0"],
       ["iterm2_hostname", "devbox"],
     ]),
     true,
+    "iterm2",
+    true,
     { controlMode: true, features: [] },
   );
   assert.equal(diagnostics.path, "tmux-control");
   assert.equal(diagnostics.hyperlinkMismatch, false);
+  assert.equal(diagnostics.imageMismatch, false);
 });
 
 test("does not report an iTerm2 issue for unrelated tmux sessions", () => {
@@ -138,10 +163,72 @@ test("does not report an iTerm2 issue for unrelated tmux sessions", () => {
       ["TERM", "tmux-256color"],
     ]),
     false,
+    undefined,
+    true,
     { controlMode: false, features: ["RGB"] },
   );
   assert.equal(diagnostics.path, "undetected");
   assert.equal(diagnostics.hyperlinkMismatch, false);
+  assert.equal(diagnostics.imageMismatch, false);
+});
+
+test("resolves explicit Pi image settings before environment detection", () => {
+  const env = environment([
+    ["TMUX", "/tmp/tmux/default,1,0"],
+    ["PI_IMAGE_PROTOCOL", "kitty"],
+  ]);
+  assert.equal(resolveImageCapability(env, "iterm2"), "iterm2");
+  assert.equal(resolveImageCapability(env, false), undefined);
+});
+
+test("uses Pi image environment overrides before automatic detection", () => {
+  const env = environment([
+    ["TMUX", "/tmp/tmux/default,1,0"],
+    ["PI_IMAGE_PROTOCOL", "iterm2"],
+  ]);
+  assert.equal(resolveImageCapability(env, "auto"), "iterm2");
+});
+
+test("disables automatic images inside tmux and detects direct iTerm2", () => {
+  assert.equal(
+    resolveImageCapability(
+      environment([
+        ["TMUX", "/tmp/tmux/default,1,0"],
+        ["ITERM_SESSION_ID", "w0t0p0:example"],
+      ]),
+      "auto",
+    ),
+    undefined,
+  );
+  assert.equal(
+    resolveImageCapability(environment([["TERM_PROGRAM", "iTerm.app"]]), "auto"),
+    "iterm2",
+  );
+});
+
+test("suppresses the image warning when image display is intentionally hidden", () => {
+  const diagnostics = resolveItermDiagnostics(
+    environment([
+      ["TMUX", "/tmp/tmux/default,1,0"],
+      ["ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX", "1"],
+    ]),
+    true,
+    undefined,
+    false,
+    { controlMode: true, features: [] },
+  );
+  assert.equal(diagnostics.imageMismatch, false);
+});
+
+test("direct iTerm2 sessions do not produce an image mismatch", () => {
+  const diagnostics = resolveItermDiagnostics(
+    environment([["TERM_PROGRAM", "iTerm.app"]]),
+    true,
+    undefined,
+    true,
+  );
+  assert.equal(diagnostics.path, "direct");
+  assert.equal(diagnostics.imageMismatch, false);
 });
 
 test("injects immediately after a complete redraw marker", () => {
