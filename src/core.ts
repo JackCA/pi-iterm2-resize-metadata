@@ -28,12 +28,17 @@ export interface TmuxClientInfo {
 }
 
 export type HyperlinkSetting = boolean | "auto" | undefined;
+export type ImageProtocol = "kitty" | "iterm2" | undefined;
+export type ImageSetting = ImageProtocol | "auto" | false;
 export type ItermSessionPath = "direct" | "tmux" | "tmux-control" | "undetected";
 
 export interface ItermDiagnostics {
   path: ItermSessionPath;
   hyperlinksEnabled: boolean;
   hyperlinkMismatch: boolean;
+  imageProtocol: ImageProtocol;
+  showImages: boolean;
+  imageMismatch: boolean;
   tmuxFeatures: readonly string[];
 }
 
@@ -74,6 +79,26 @@ function firstNonempty(...values: Array<string | undefined>): string {
   return "";
 }
 
+export function isTmuxEnvironment(env: Environment): boolean {
+  return Boolean(env.TMUX?.trim() || env.TERM?.toLowerCase().startsWith("tmux"));
+}
+
+export function hasDirectItermEvidence(env: Environment): boolean {
+  return Boolean(
+    env.ITERM_SESSION_ID?.trim() ||
+      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
+      env.TERM_PROGRAM?.toLowerCase() === "iterm.app",
+  );
+}
+
+export function hasItermTmuxIntegrationEvidence(env: Environment): boolean {
+  return Boolean(
+    env.ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX?.trim() === "1" ||
+      env.iterm2_hostname?.trim() ||
+      env.PI_ITERM2_HOST?.trim(),
+  );
+}
+
 export function resolveConfiguration(
   env: Environment,
   systemHostname: string,
@@ -88,13 +113,8 @@ export function resolveConfiguration(
   const host = firstNonempty(env.PI_ITERM2_HOST, env.iterm2_hostname, systemHostname);
 
   const explicitEvidence = Boolean(env.PI_ITERM2_HOST?.trim() || env.iterm2_hostname?.trim());
-  const directItermEvidence = Boolean(
-    env.ITERM_SESSION_ID?.trim() ||
-      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
-      env.TERM_PROGRAM === "iTerm.app",
-  );
   const remoteEvidence = Boolean(env.SSH_CONNECTION?.trim() || env.SSH_CLIENT?.trim());
-  const autoDetected = explicitEvidence || (directItermEvidence && remoteEvidence);
+  const autoDetected = explicitEvidence || (hasDirectItermEvidence(env) && remoteEvidence);
 
   if (mode === "off") {
     return { mode, enabled: false, user, host, reason: "disabled by PI_ITERM2_METADATA" };
@@ -123,33 +143,65 @@ export function resolveHyperlinkCapability(
     return false;
   }
 
-  const term = env.TERM?.toLowerCase() ?? "";
-  if (env.TMUX?.trim() || term.startsWith("tmux")) {
+  if (isTmuxEnvironment(env)) {
     return tmuxClient?.features.some((feature) => feature.toLowerCase() === "hyperlinks") ?? false;
   }
-  return Boolean(
-    env.ITERM_SESSION_ID?.trim() ||
-      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
-      env.TERM_PROGRAM === "iTerm.app",
-  );
+  return hasDirectItermEvidence(env);
+}
+
+export function resolveImageCapability(env: Environment, setting: ImageSetting): ImageProtocol {
+  if (setting === "kitty" || setting === "iterm2") {
+    return setting;
+  }
+  if (setting === false) {
+    return undefined;
+  }
+
+  const override = env.PI_IMAGE_PROTOCOL?.trim().toLowerCase();
+  if (override === "kitty" || override === "iterm2") {
+    return override;
+  }
+  if (override === "none" || override === "0") {
+    return undefined;
+  }
+
+  const term = env.TERM?.toLowerCase() ?? "";
+  if (isTmuxEnvironment(env) || term.startsWith("screen")) {
+    return undefined;
+  }
+
+  const termProgram = env.TERM_PROGRAM?.toLowerCase() ?? "";
+  if (
+    termProgram === "herdr" ||
+    env.KITTY_WINDOW_ID?.trim() ||
+    termProgram === "kitty" ||
+    termProgram === "ghostty" ||
+    term.includes("ghostty") ||
+    env.GHOSTTY_RESOURCES_DIR?.trim() ||
+    env.WEZTERM_PANE?.trim() ||
+    termProgram === "wezterm" ||
+    termProgram === "warpterminal" ||
+    env.WARP_SESSION_ID?.trim() ||
+    env.WARP_TERMINAL_SESSION_UUID?.trim()
+  ) {
+    return "kitty";
+  }
+  if (hasDirectItermEvidence(env)) {
+    return "iterm2";
+  }
+  return undefined;
 }
 
 export function resolveItermDiagnostics(
   env: Environment,
   hyperlinksEnabled: boolean,
+  imageProtocol: ImageProtocol,
+  showImages: boolean,
   tmuxClient?: TmuxClientInfo,
 ): ItermDiagnostics {
-  const inTmux = Boolean(env.TMUX?.trim() || env.TERM?.toLowerCase().startsWith("tmux"));
-  const directIterm = Boolean(
-    env.ITERM_SESSION_ID?.trim() ||
-      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
-      env.TERM_PROGRAM === "iTerm.app",
-  );
-  const integratedTmux = Boolean(
-    env.ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX?.trim() === "1" ||
-      env.iterm2_hostname?.trim() ||
-      env.PI_ITERM2_HOST?.trim(),
-  );
+  const inTmux = isTmuxEnvironment(env);
+  const directIterm = hasDirectItermEvidence(env);
+  const integratedTmux = hasItermTmuxIntegrationEvidence(env);
 
   let path: ItermSessionPath = "undetected";
   if (inTmux && integratedTmux && tmuxClient?.controlMode) {
@@ -160,10 +212,14 @@ export function resolveItermDiagnostics(
     path = "direct";
   }
 
+  const integratedPath = path === "tmux" || path === "tmux-control";
   return {
     path,
     hyperlinksEnabled,
-    hyperlinkMismatch: (path === "tmux" || path === "tmux-control") && !hyperlinksEnabled,
+    hyperlinkMismatch: integratedPath && !hyperlinksEnabled,
+    imageProtocol,
+    showImages,
+    imageMismatch: integratedPath && showImages && imageProtocol !== "iterm2",
     tmuxFeatures: tmuxClient?.features ?? [],
   };
 }

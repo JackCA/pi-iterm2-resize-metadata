@@ -29,7 +29,7 @@ pi install npm:pi-iterm2-resize-metadata
 From an immutable GitHub release:
 
 ```bash
-pi install git:github.com/JackCA/pi-iterm2-resize-metadata@v0.1.1
+pi install git:github.com/JackCA/pi-iterm2-resize-metadata@v0.2.0
 ```
 
 For local development:
@@ -73,7 +73,9 @@ export PI_ITERM2_HOST=my-ssh-alias
 export PI_ITERM2_USER="$USER"
 ```
 
-### OSC 8 hyperlink diagnostics
+### Terminal capability diagnostics
+
+#### OSC 8 hyperlinks
 
 iTerm2 tmux Integration uses a control-mode client (`tmux -CC`). That client may leave
 `client_termfeatures` empty, so Pi conservatively disables OSC 8 links even though iTerm2 can
@@ -101,20 +103,45 @@ If Command-clicking `OSC 8 TEST` opens the browser, enable hyperlinks in Pi's us
 The diagnostic respects Pi's `terminal.hyperlinks` setting, `PI_HYPERLINKS`, trusted project
 settings, and native tmux `hyperlinks` client features.
 
+#### Inline images
+
+Pi automatically selects the native iTerm2 image protocol in a direct iTerm2 session, but its
+conservative tmux detection disables inline images before inspecting the outer client. When the
+extension detects iTerm2 tmux Integration while Pi image display is enabled but not using the
+`iterm2` protocol, it includes the mismatch in `/iterm-metadata-status` and shows one actionable
+warning per load.
+
+After confirming that native iTerm2 images work through the complete SSH and `tmux -CC` path,
+enable them in Pi's user settings and run `/reload`:
+
+```json
+{
+  "terminal": {
+    "images": "iterm2"
+  }
+}
+```
+
+The diagnostic follows Pi's precedence for trusted `terminal.images` settings,
+`PI_IMAGE_PROTOCOL`, and automatic environment detection. It also respects
+`terminal.showImages=false` as an intentional choice and does not warn in that case. An attached
+terminal without iTerm2's native image protocol may show blank reserved rows; one Pi process cannot
+emit different image protocols to multiple clients attached to the same tmux pane.
+
 A healthy iTerm2 control-mode session reports:
 
 ```text
-path=tmux-control; hyperlinks=enabled; tmux-features=unadvertised
+path=tmux-control; hyperlinks=enabled; images=iterm2; show-images=enabled; tmux-features=unadvertised
 ```
 
 `tmux-features=unadvertised` is expected for `tmux -CC`; it means the client did not publish a
-feature list, not that iTerm2 lacks those features. The explicit Pi setting closes that detection
-gap, so this healthy state does not produce a warning.
+feature list, not that iTerm2 lacks those features. Explicit Pi settings close the control-mode
+detection gaps, so this healthy state does not produce a warning.
 
 ## Commands
 
 - `/iterm-metadata-refresh` — emit metadata immediately for subsequent output
-- `/iterm-metadata-status` — show activation, identity, redraw count, terminal path, and hyperlink state
+- `/iterm-metadata-status` — show activation, identity, redraw count, terminal path, hyperlinks, and image state
 - `/iterm-scp-refresh` — compatibility alias for the refresh command
 
 ## Using contextual downloads
@@ -142,9 +169,9 @@ OSC 1337;CurrentDir=/working/directory BEL
 
 The matcher handles a redraw sequence split across adjacent writes. Nonmatching writes are passed through unchanged, binary writes reset the matcher, and the wrapper is disabled and removed during session shutdown.
 
-For diagnostics, the extension reads Pi's user settings and trusted project settings and runs a
-bounded `tmux display-message` query when inside tmux. There are no timers, background processes,
-network requests, clipboard reads, or file transfers.
+For diagnostics, the extension reads Pi's terminal capability settings from user settings and
+trusted project settings and runs a bounded `tmux display-message` query when inside tmux. There
+are no timers, background processes, network requests, clipboard reads, or file transfers.
 
 ## Limitations
 
@@ -179,7 +206,7 @@ The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and 
 
 Release Please derives versions from Conventional Commits, maintains a release pull request, and creates immutable `vX.Y.Z` tags and GitHub Releases after that pull request is merged. See [PUBLISHING.md](PUBLISHING.md).
 
-The tests cover configuration resolution, OSC sanitization, iTerm2/tmux hyperlink diagnostics, complete and split redraw markers, repeated markers, and matcher reset behavior.
+The tests cover configuration resolution, OSC sanitization, iTerm2/tmux hyperlink and image diagnostics, complete and split redraw markers, repeated markers, and matcher reset behavior.
 
 ## Repository-scoped GitHub access
 

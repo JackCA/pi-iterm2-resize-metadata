@@ -11,10 +11,12 @@ import {
   createMetadataSequence,
   createRedrawInjector,
   type HyperlinkSetting,
+  type ImageSetting,
   type ItermDiagnostics,
   type ResolvedConfiguration,
   resolveConfiguration,
   resolveHyperlinkCapability,
+  resolveImageCapability,
   resolveItermDiagnostics,
   type TmuxClientInfo,
 } from "../../src/core.ts";
@@ -51,36 +53,65 @@ function inspectTmuxClient(): TmuxClientInfo | undefined {
   }
 }
 
-function readHyperlinkSetting(settingsPath: string): HyperlinkSetting {
+interface TerminalSettings {
+  hyperlinks: HyperlinkSetting;
+  images: ImageSetting;
+  showImages: boolean | undefined;
+}
+
+function readTerminalSettings(settingsPath: string): TerminalSettings {
   try {
     const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
-      terminal?: { hyperlinks?: unknown };
+      terminal?: { hyperlinks?: unknown; images?: unknown; showImages?: unknown };
     };
-    const value = settings.terminal?.hyperlinks;
-    return typeof value === "boolean" || value === "auto" ? value : undefined;
+    const hyperlinks = settings.terminal?.hyperlinks;
+    const images = settings.terminal?.images;
+    const showImages = settings.terminal?.showImages;
+    return {
+      hyperlinks: typeof hyperlinks === "boolean" || hyperlinks === "auto" ? hyperlinks : undefined,
+      images:
+        images === "kitty" || images === "iterm2" || images === "auto" || images === false
+          ? images
+          : undefined,
+      showImages: typeof showImages === "boolean" ? showImages : undefined,
+    };
   } catch {
-    return undefined;
+    return { hyperlinks: undefined, images: undefined, showImages: undefined };
   }
 }
 
-function configuredHyperlinkSetting(ctx: ExtensionContext): HyperlinkSetting {
+function configuredTerminalSettings(ctx: ExtensionContext): TerminalSettings {
   const agentDirectory =
     process.env.PI_CODING_AGENT_DIR?.trim() || path.join(os.homedir(), ".pi", "agent");
-  const globalSetting = readHyperlinkSetting(path.join(agentDirectory, "settings.json"));
+  const globalSettings = readTerminalSettings(path.join(agentDirectory, "settings.json"));
   if (!ctx.isProjectTrusted()) {
-    return globalSetting;
+    return globalSettings;
   }
-  return readHyperlinkSetting(path.join(ctx.cwd, ".pi", "settings.json")) ?? globalSetting;
+
+  const projectSettings = readTerminalSettings(path.join(ctx.cwd, ".pi", "settings.json"));
+  return {
+    hyperlinks: projectSettings.hyperlinks ?? globalSettings.hyperlinks,
+    images: projectSettings.images ?? globalSettings.images,
+    showImages: projectSettings.showImages ?? globalSettings.showImages,
+  };
 }
 
 function currentDiagnostics(ctx: ExtensionContext): ItermDiagnostics {
   const tmuxClient = inspectTmuxClient();
+  const settings = configuredTerminalSettings(ctx);
   const hyperlinksEnabled = resolveHyperlinkCapability(
     process.env,
-    configuredHyperlinkSetting(ctx),
+    settings.hyperlinks,
     tmuxClient,
   );
-  return resolveItermDiagnostics(process.env, hyperlinksEnabled, tmuxClient);
+  const imageProtocol = resolveImageCapability(process.env, settings.images);
+  return resolveItermDiagnostics(
+    process.env,
+    hyperlinksEnabled,
+    imageProtocol,
+    settings.showImages ?? true,
+    tmuxClient,
+  );
 }
 
 function formatDiagnostics(diagnostics: ItermDiagnostics): string {
@@ -91,7 +122,7 @@ function formatDiagnostics(diagnostics: ItermDiagnostics): string {
       : inTmux
         ? "unadvertised"
         : "not-applicable";
-  return `path=${diagnostics.path}; hyperlinks=${diagnostics.hyperlinksEnabled ? "enabled" : "disabled"}; tmux-features=${features}`;
+  return `path=${diagnostics.path}; hyperlinks=${diagnostics.hyperlinksEnabled ? "enabled" : "disabled"}; images=${diagnostics.imageProtocol ?? "disabled"}; show-images=${diagnostics.showImages ? "enabled" : "disabled"}; tmux-features=${features}`;
 }
 
 function installWriteInterceptor(getSequence: () => string | undefined): WriteInterceptor {
@@ -138,7 +169,7 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
   let cwd = process.cwd();
   let configuration: ResolvedConfiguration = resolveConfiguration(process.env, os.hostname());
   let interceptor: WriteInterceptor | undefined;
-  let hyperlinkWarningShown = false;
+  let capabilityWarningShown = false;
 
   const sequence = () =>
     createMetadataSequence({
@@ -182,12 +213,19 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
     }
 
     const diagnostics = currentDiagnostics(ctx);
-    if (configuration.enabled && diagnostics.hyperlinkMismatch && !hyperlinkWarningShown) {
-      hyperlinkWarningShown = true;
-      ctx.ui.notify(
-        "iTerm2 tmux integration detected, but Pi OSC 8 hyperlinks are disabled. Set terminal.hyperlinks=true in Pi settings and run /reload.",
-        "warning",
-      );
+    if (
+      configuration.enabled &&
+      (diagnostics.hyperlinkMismatch || diagnostics.imageMismatch) &&
+      !capabilityWarningShown
+    ) {
+      capabilityWarningShown = true;
+      const message =
+        diagnostics.hyperlinkMismatch && diagnostics.imageMismatch
+          ? 'iTerm2 tmux integration detected, but Pi OSC 8 hyperlinks are disabled and inline images are not using the iTerm2 protocol. Set terminal.hyperlinks=true and terminal.images="iterm2" in Pi settings, then run /reload.'
+          : diagnostics.hyperlinkMismatch
+            ? "iTerm2 tmux integration detected, but Pi OSC 8 hyperlinks are disabled. Set terminal.hyperlinks=true in Pi settings and run /reload."
+            : 'iTerm2 tmux integration detected, but Pi inline images are not using the iTerm2 protocol. Set terminal.images="iterm2" in Pi settings and run /reload.';
+      ctx.ui.notify(message, "warning");
     }
     if (!configuration.enabled) {
       return;
@@ -234,7 +272,9 @@ export default function iterm2ResizeMetadata(pi: ExtensionAPI) {
       const diagnostics = currentDiagnostics(ctx);
       ctx.ui.notify(
         `iTerm2 metadata ${state}; mode=${configuration.mode}; target=${configuration.user}@${configuration.host}; redraws=${count}; ${formatDiagnostics(diagnostics)}; ${configuration.reason}`,
-        interceptor && !diagnostics.hyperlinkMismatch ? "info" : "warning",
+        interceptor && !diagnostics.hyperlinkMismatch && !diagnostics.imageMismatch
+          ? "info"
+          : "warning",
       );
       return Promise.resolve();
     },
