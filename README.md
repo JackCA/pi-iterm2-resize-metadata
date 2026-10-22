@@ -29,7 +29,7 @@ pi install npm:pi-iterm2-resize-metadata
 From an immutable GitHub release:
 
 ```bash
-pi install git:github.com/JackCA/pi-iterm2-resize-metadata@v0.1.0
+pi install git:github.com/JackCA/pi-iterm2-resize-metadata@v0.1.1
 ```
 
 For local development:
@@ -73,10 +73,48 @@ export PI_ITERM2_HOST=my-ssh-alias
 export PI_ITERM2_USER="$USER"
 ```
 
+### OSC 8 hyperlink diagnostics
+
+iTerm2 tmux Integration uses a control-mode client (`tmux -CC`). That client may leave
+`client_termfeatures` empty, so Pi conservatively disables OSC 8 links even though iTerm2 can
+render them. The extension detects this specific mismatch and shows one actionable warning per
+load. It never changes Pi or tmux settings automatically.
+
+First confirm that OSC 8 reaches iTerm2 through the complete terminal path by running this in a
+normal shell inside the same tmux session:
+
+```bash
+printf '\033]8;;https://example.com\007OSC 8 TEST\033]8;;\007\n'
+```
+
+If Command-clicking `OSC 8 TEST` opens the browser, enable hyperlinks in Pi's user settings and run
+`/reload`:
+
+```json
+{
+  "terminal": {
+    "hyperlinks": true
+  }
+}
+```
+
+The diagnostic respects Pi's `terminal.hyperlinks` setting, `PI_HYPERLINKS`, trusted project
+settings, and native tmux `hyperlinks` client features.
+
+A healthy iTerm2 control-mode session reports:
+
+```text
+path=tmux-control; hyperlinks=enabled; tmux-features=unadvertised
+```
+
+`tmux-features=unadvertised` is expected for `tmux -CC`; it means the client did not publish a
+feature list, not that iTerm2 lacks those features. The explicit Pi setting closes that detection
+gap, so this healthy state does not produce a warning.
+
 ## Commands
 
 - `/iterm-metadata-refresh` — emit metadata immediately for subsequent output
-- `/iterm-metadata-status` — show activation, target identity, and redraw count
+- `/iterm-metadata-status` — show activation, identity, redraw count, terminal path, and hyperlink state
 - `/iterm-scp-refresh` — compatibility alias for the refresh command
 
 ## Using contextual downloads
@@ -104,7 +142,9 @@ OSC 1337;CurrentDir=/working/directory BEL
 
 The matcher handles a redraw sequence split across adjacent writes. Nonmatching writes are passed through unchanged, binary writes reset the matcher, and the wrapper is disabled and removed during session shutdown.
 
-There are no timers, background processes, network requests, clipboard reads, or file transfers.
+For diagnostics, the extension reads Pi's user settings and trusted project settings and runs a
+bounded `tmux display-message` query when inside tmux. There are no timers, background processes,
+network requests, clipboard reads, or file transfers.
 
 ## Limitations
 
@@ -112,6 +152,7 @@ There are no timers, background processes, network requests, clipboard reads, or
 - A future Pi renderer could change the redraw sequence. In that case the extension fails open: terminal output continues normally, but metadata will not be restored automatically.
 - This fixes metadata loss; it does not change iTerm2's requirement that the selected SCP path occupy one terminal line.
 - The extension enables metadata. iTerm2 still controls authentication and the actual SCP transfer.
+- With remote-host and current-directory metadata active, iTerm2 Semantic History may treat ordinary words as possible relative remote paths while Command is held. This is separate from OSC 8 linking and is the trade-off that enables contextual SCP actions.
 
 ## Development
 
@@ -125,9 +166,7 @@ npm run hooks:install
 Run the same checks used by CI and the pre-commit hook:
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
+npm run check
 ```
 
 Inspect the publishable package:
@@ -140,7 +179,7 @@ The repository uses the same strict Biome 2.5.7 rules, TypeScript settings, and 
 
 Release Please derives versions from Conventional Commits, maintains a release pull request, and creates immutable `vX.Y.Z` tags and GitHub Releases after that pull request is merged. See [PUBLISHING.md](PUBLISHING.md).
 
-The tests cover configuration resolution, OSC sanitization, complete and split redraw markers, repeated markers, and matcher reset behavior.
+The tests cover configuration resolution, OSC sanitization, iTerm2/tmux hyperlink diagnostics, complete and split redraw markers, repeated markers, and matcher reset behavior.
 
 ## Repository-scoped GitHub access
 

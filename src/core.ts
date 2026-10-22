@@ -22,6 +22,21 @@ export interface TransformResult {
   injections: number;
 }
 
+export interface TmuxClientInfo {
+  controlMode: boolean;
+  features: readonly string[];
+}
+
+export type HyperlinkSetting = boolean | "auto" | undefined;
+export type ItermSessionPath = "direct" | "tmux" | "tmux-control" | "undetected";
+
+export interface ItermDiagnostics {
+  path: ItermSessionPath;
+  hyperlinksEnabled: boolean;
+  hyperlinkMismatch: boolean;
+  tmuxFeatures: readonly string[];
+}
+
 export interface RedrawInjector {
   transform(chunk: string): TransformResult;
   reset(): void;
@@ -91,6 +106,66 @@ export function resolveConfiguration(
     return { mode, enabled: true, user, host, reason: "iTerm2 remote session detected" };
   }
   return { mode, enabled: false, user, host, reason: "no iTerm2 remote-session evidence" };
+}
+
+export function resolveHyperlinkCapability(
+  env: Environment,
+  setting: HyperlinkSetting,
+  tmuxClient?: TmuxClientInfo,
+): boolean {
+  if (typeof setting === "boolean") {
+    return setting;
+  }
+  if (env.PI_HYPERLINKS === "1") {
+    return true;
+  }
+  if (env.PI_HYPERLINKS === "0") {
+    return false;
+  }
+
+  const term = env.TERM?.toLowerCase() ?? "";
+  if (env.TMUX?.trim() || term.startsWith("tmux")) {
+    return tmuxClient?.features.some((feature) => feature.toLowerCase() === "hyperlinks") ?? false;
+  }
+  return Boolean(
+    env.ITERM_SESSION_ID?.trim() ||
+      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
+      env.TERM_PROGRAM === "iTerm.app",
+  );
+}
+
+export function resolveItermDiagnostics(
+  env: Environment,
+  hyperlinksEnabled: boolean,
+  tmuxClient?: TmuxClientInfo,
+): ItermDiagnostics {
+  const inTmux = Boolean(env.TMUX?.trim() || env.TERM?.toLowerCase().startsWith("tmux"));
+  const directIterm = Boolean(
+    env.ITERM_SESSION_ID?.trim() ||
+      env.LC_TERMINAL?.toLowerCase() === "iterm2" ||
+      env.TERM_PROGRAM === "iTerm.app",
+  );
+  const integratedTmux = Boolean(
+    env.ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX?.trim() === "1" ||
+      env.iterm2_hostname?.trim() ||
+      env.PI_ITERM2_HOST?.trim(),
+  );
+
+  let path: ItermSessionPath = "undetected";
+  if (inTmux && integratedTmux && tmuxClient?.controlMode) {
+    path = "tmux-control";
+  } else if (inTmux && integratedTmux) {
+    path = "tmux";
+  } else if (directIterm) {
+    path = "direct";
+  }
+
+  return {
+    path,
+    hyperlinksEnabled,
+    hyperlinkMismatch: (path === "tmux" || path === "tmux-control") && !hyperlinksEnabled,
+    tmuxFeatures: tmuxClient?.features ?? [],
+  };
 }
 
 function findInsertionPoints(

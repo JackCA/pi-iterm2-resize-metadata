@@ -5,6 +5,8 @@ import {
   createRedrawInjector,
   FULL_REDRAW_CLEAR,
   resolveConfiguration,
+  resolveHyperlinkCapability,
+  resolveItermDiagnostics,
   sanitizeOscValue,
 } from "../src/core.ts";
 
@@ -71,6 +73,75 @@ test("auto mode remains inactive without iTerm2 remote-session evidence", () => 
     "host.local",
   );
   assert.equal(config.enabled, false);
+});
+
+test("resolves explicit Pi hyperlink settings before tmux auto-detection", () => {
+  const env = environment([
+    ["TMUX", "/tmp/tmux/default,1,0"],
+    ["TERM", "tmux-256color"],
+  ]);
+  const client = { controlMode: true, features: [] };
+  assert.equal(resolveHyperlinkCapability(env, true, client), true);
+  assert.equal(resolveHyperlinkCapability(env, false, client), false);
+});
+
+test("uses tmux client features for automatic hyperlink detection", () => {
+  const env = environment([["TMUX", "/tmp/tmux/default,1,0"]]);
+  assert.equal(
+    resolveHyperlinkCapability(env, "auto", {
+      controlMode: false,
+      features: ["RGB", "hyperlinks"],
+    }),
+    true,
+  );
+  assert.equal(
+    resolveHyperlinkCapability(env, undefined, { controlMode: true, features: [] }),
+    false,
+  );
+});
+
+test("diagnoses Pi hyperlink false-negatives in iTerm2 tmux control mode", () => {
+  const diagnostics = resolveItermDiagnostics(
+    environment([
+      ["TMUX", "/tmp/tmux/default,1,0"],
+      ["TERM", "tmux-256color"],
+      ["ITERM_ENABLE_SHELL_INTEGRATION_WITH_TMUX", "1"],
+    ]),
+    false,
+    { controlMode: true, features: [] },
+  );
+  assert.deepEqual(diagnostics, {
+    path: "tmux-control",
+    hyperlinksEnabled: false,
+    hyperlinkMismatch: true,
+    tmuxFeatures: [],
+  });
+});
+
+test("accepts an explicit Pi hyperlink override in iTerm2 tmux control mode", () => {
+  const diagnostics = resolveItermDiagnostics(
+    environment([
+      ["TMUX", "/tmp/tmux/default,1,0"],
+      ["iterm2_hostname", "devbox"],
+    ]),
+    true,
+    { controlMode: true, features: [] },
+  );
+  assert.equal(diagnostics.path, "tmux-control");
+  assert.equal(diagnostics.hyperlinkMismatch, false);
+});
+
+test("does not report an iTerm2 issue for unrelated tmux sessions", () => {
+  const diagnostics = resolveItermDiagnostics(
+    environment([
+      ["TMUX", "/tmp/tmux/default,1,0"],
+      ["TERM", "tmux-256color"],
+    ]),
+    false,
+    { controlMode: false, features: ["RGB"] },
+  );
+  assert.equal(diagnostics.path, "undetected");
+  assert.equal(diagnostics.hyperlinkMismatch, false);
 });
 
 test("injects immediately after a complete redraw marker", () => {

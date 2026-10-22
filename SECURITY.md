@@ -6,6 +6,8 @@ Review extension source before installation.
 The extension does not read the clipboard, open sockets, transfer files, or send
 telemetry. It emits the current username, configured host, and Pi working
 directory to the attached terminal using iTerm2 OSC 1337 metadata sequences.
+For local diagnostics, it reads Pi's user settings and trusted project settings
+and runs a bounded `tmux display-message` query when inside tmux.
 
 To report a vulnerability, open a private security advisory in the GitHub
 repository rather than a public issue.
