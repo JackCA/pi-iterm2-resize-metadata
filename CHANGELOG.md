@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/JackCA/pi-iterm2-resize-metadata/compare/v0.2.0...v0.3.0) (2026-10-22)
+
+
+### Features
+
+* add iTerm2 image diagnostics ([#5](https://github.com/JackCA/pi-iterm2-resize-metadata/issues/5)) ([793a63d](https://github.com/JackCA/pi-iterm2-resize-metadata/commit/793a63d57c478975cecf8370c7a20bc311a0c100))
+* route iTerm2 uploads through cwd tmp ([#7](https://github.com/JackCA/pi-iterm2-resize-metadata/issues/7)) ([e5b1db9](https://github.com/JackCA/pi-iterm2-resize-metadata/commit/e5b1db9ead66c81af70628e00e13983e3f43e1f6))
+
 ## [0.2.0](https://github.com/JackCA/pi-iterm2-resize-metadata/compare/v0.1.1...v0.2.0) (2026-10-22)
 
 
